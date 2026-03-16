@@ -10,13 +10,13 @@
 
 #include "rotation.h"
 
-
-static uint32_t sync_prev = 0;
-static uint32_t rotation_angle = 0;
-static int32_t rotation_delta = 256;
-static int sync_level = 1;
+// internal variables for rotation calculation
+static uint32_t sync_prev = 0; // the timestamp of the last sync signal.
+static uint32_t rotation_angle = 0; // the current angle of rotation, in the same units as rotation_zero (0 to ROTATION_FULL-1).
+static int32_t rotation_delta = 256; // the change in angle per microsecond (ROTATION_FULL / rotation_period).
 static uint32_t tick_prev = 0;
-static uint32_t rotation_history[8];
+static uint32_t rotation_history[8];  // history of recent rotation periods, used for smoothing.
+//saving 8 recent periods, which is enough for smoothing while still being responsive to changes. 
 
 uint32_t rotation_zero = ROTATION_FULL / 360 * ROTATION_ZERO;
 bool rotation_stopped = true;
@@ -98,4 +98,8 @@ void rotation_init(void) {
     rotation_stopped = true;
 }
 
+
+// Reads the SPIN_SYNC pin to detect each half-revolution, calculates rotation speed
+// using the median of the last 8 periods to filter noise, then estimates the current
+// angle by integrating speed over time and corrects drift using the sync signal.
 

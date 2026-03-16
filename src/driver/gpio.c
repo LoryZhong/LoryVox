@@ -18,7 +18,7 @@
 volatile uint32_t *gpio_base;
 volatile uint32_t *timer_uS;
 
-
+// Initialize the pull-up/down state of a GPIO pin (only for BCM2711)
 void gpio_init_pull(int pin, int pud) {
     // pud: 0:off 1:up 2:down
     _Static_assert(BCM_BASE==BCM2711_PERI_BASE, "2711 specific");
@@ -32,6 +32,8 @@ void gpio_init_pull(int pin, int pud) {
     gpio_base[GPPUPPDN0 + (pin>>4)] = bits;
 }
 
+
+// Initialize a GPIO pin as input or output
 void gpio_init_in(int pin) {
     gpio_base[pin / 10] &= ~(7ull << ((pin % 10) * 3));
 }
@@ -42,6 +44,8 @@ void gpio_init_out(int pin) {
     gpio_init_pull(pin, 0);
 }
 
+
+// Map GPIO and timer registers into process address space via /dev/mem (requires root)
 static bool gpio_mapmem(void) {
     int memfd;
 
@@ -65,6 +69,8 @@ static bool gpio_mapmem(void) {
     return true;
 }
 
+
+// Initialize all GPIO pins and blank the display
 bool gpio_init(void) {
     if (!gpio_mapmem()) {
         return false;
@@ -82,5 +88,8 @@ bool gpio_init(void) {
     return true;
 }
 
+//  it open the /dev/mem and map the GPIO registers into our address space, allowing us to control the GPIO pins directly from user space. 
+// It also initializes the SPIN_SYNC pin as an input with no pull-up/down, and initializes all the pins in matrix_init_out as outputs. 
+// Finally, it sets the RGB_BLANK pin high to start with the display blanked.
 
 

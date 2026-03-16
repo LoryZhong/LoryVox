@@ -1,27 +1,34 @@
-#define _GNU_SOURCE
+#define _GNU_SOURCE // Enable GNU extensions for cpu_set_t and related functions
+
+//standard library headers
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <sched.h>
-#include <time.h>
-#include <termios.h>
-#include <math.h>
-#include <pthread.h>
-#include <signal.h>
 
-#include "rammel.h"
-#include "gadget.h"
-#include "rotation.h"
-#include "slicemap.h"
-#include "gpio.h"
-#include "input.h"
+//file/memory headers
+#include <fcntl.h>      //open(), O_RDWR
+#include <sys/mman.h>   //mmap(), munmap() shared memory
+#include <sys/stat.h>   //umask()
+#include <unistd.h>     //close(), usleep()
 
+//system control headers
+#include <stdint.h>     //uint8_t, uint16_t, etc
+#include <sched.h>      //sched_setaffinity() to lock driver to a CPU core
+#include <time.h>       
+#include <termios.h>    //terminal control for interactive input
+#include <math.h>       
+#include <pthread.h>    //multithreading for slicer worker thread
+#include <signal.h>     //signal handling for graceful shutdown
+
+#include "rammel.h"     //utility macros
+#include "gadget.h"     //hardware configuration
+#include "rotation.h"   //rotation tracking
+#include "slicemap.h"   //slice map generation and lookup
+#include "gpio.h"       //GPIO control functions
+#include "input.h"      //input handling functions
+
+//vertical scan using shift register 
 #ifdef VERTICAL_SCAN
     #include "colscatter.h"
     #define TRAIL_STACK 1
@@ -31,21 +38,23 @@
     //#define SLICER_PROFILE
 #endif
 
-
+// maximum bit per channel =3 (8 brightness levels).
 #define BPC_MAX 3
 #define DEVELOPMENT_FEATURES
 
 #ifdef DEVELOPMENT_FEATURES
-#define DEVELOPMENT_ONLY
+#define DEVELOPMENT_ONLY    //adjustable parameters and debug info
 #else
-#define DEVELOPMENT_ONLY const
+#define DEVELOPMENT_ONLY const  //fixed parameters that can be optimised by the compiler
 #endif
 
-static DEVELOPMENT_ONLY int sweep_trails = TRAIL_STACK - 1;
-static DEVELOPMENT_ONLY int debug_panel = 0;
-static DEVELOPMENT_ONLY uint32_t stop_axis = 1;
+//development adjustable parameters with default values
+static DEVELOPMENT_ONLY int sweep_trails = TRAIL_STACK - 1;     //number of trailing frames to OR together during sweep
+static DEVELOPMENT_ONLY int debug_panel = 0;                    //adjust panel selecting 
+static DEVELOPMENT_ONLY uint32_t stop_axis = 1;                 //views along axis when stopped    
 
-#ifdef HORIZONTAL_PRESLICE
+//shared memory + slicer_buffer + slicer thread//
+#ifdef HORIZONTAL_PRESLICE  //for horizontal scan mode
 
 #ifdef STINT_ON_BUFFER
 // the 4 way symmetry of the slice map means we can use a 1/4 size slice buffer and still not need to clear unmapped columns
@@ -53,12 +62,14 @@ static DEVELOPMENT_ONLY uint32_t stop_axis = 1;
 #else
 #define SLICE_BUFFER_SLICES SLICE_COUNT
 #endif
-
+// pre-converted scanline data: voxel colours reorganised into panel row order
+// slice_buffer dimensions: [slice][row][panel][field][column]
 static pixel_t slice_buffer[SLICE_BUFFER_SLICES][PANEL_FIELD_HEIGHT][PANEL_COUNT][PANEL_MULTIPLEX][PANEL_WIDTH] = {};
 #define SLICE_BUFFER_WRAP(slice) ((slice) % (count_of(slice_buffer)))
 
 static DEVELOPMENT_ONLY uint non_uniformity = (uint)SLICE_BRIGHTNESS_BOOSTED;
 
+//when brightness mode changed, reset_slice map and clear slice_buffer
 static void reset_slicemap() {
     slicemap_init((slice_brightness_t)non_uniformity);
     memset((void*)slice_buffer, 0, sizeof(slice_buffer));
@@ -73,6 +84,10 @@ static void reset_slicemap() {}
 static int volume_fd;
 static voxel_double_buffer_t* volume_buffer;
 
+// shared memory
+
+//create/open shared memory /vortex_double_buffer 
+// accessed by both the driver (read) and all toys/apps (write)
 static void* map_volume() {
     mode_t old_umask = umask(0);
     volume_fd = shm_open("/vortex_double_buffer", O_CREAT | O_RDWR, 0666);
@@ -81,12 +96,12 @@ static void* map_volume() {
         perror("shm_open");
         return NULL;
     }
-
+    //setting the size of shared memory to fit the double buffer structure
     if (ftruncate(volume_fd, sizeof(voxel_double_buffer_t)) == -1) {
         perror("ftruncate");
         return NULL;
     }
-
+    //mapping the shared memory 
     volume_buffer = mmap(NULL, sizeof(voxel_double_buffer_t), PROT_READ | PROT_WRITE, MAP_SHARED, volume_fd, 0);
     if (volume_buffer == MAP_FAILED) {
         perror("mmap");
@@ -96,11 +111,13 @@ static void* map_volume() {
     return volume_buffer;
 }
 
+//unmap and close shared memory when driver shut down
 static void unmap_volume() {
     munmap(volume_buffer, sizeof(voxel_double_buffer_t));
     close(volume_fd);
 }
 
+//CPU performance control
 static void clock_control() {
     static bool performance = false;
 
@@ -108,21 +125,23 @@ static void clock_control() {
 
     if (performance != need_performance) {
         if (need_performance) {
-            system("cpufreq-set -g performance");
+            system("cpufreq-set -g performance");   //High performance mode when rotating
         } else {
-            system("cpufreq-set -g powersave");
+            system("cpufreq-set -g powersave");     //Power saving mode when stopped
         }
 
         performance = need_performance;
     }
 }
 
+// busy-wait by doing no-op GPIO writes to consume time without sleeping
 static inline void tiny_wait(uint count) {
     for (uint i = 0; i < count; ++i) {
         gpio_set_bits(0);
     }
 }
 
+// reset the shift register address lines to a known state before scanning
 static inline void reset_panels(void) {
 
 #ifdef ADDR_CLK
@@ -141,58 +160,61 @@ static inline void reset_panels(void) {
 
 #ifdef DEVELOPMENT_FEATURES
 
+// interactive keyboard controls (only compiled in DEVELOPMENT_FEATURES mode)
 static bool handle_keys() {
     int ch = getchar();
 
     switch (ch) {
-        case 27:
+        case 27:    // ESC key to exit
             return false;
 
-        case 'b': {
+        case 'b': { //cycle through brightness modes
             volume_buffer->bits_per_channel = (volume_buffer->bits_per_channel % 3) + 1;
             printf("%d bpc\n", volume_buffer->bits_per_channel);
         } break;
 
-        case 'u': {
+        case 'u': { //cycle through non-uniformity compensation modes
             non_uniformity = (non_uniformity + 1) % 3;
             printf("non uniformity: %s\n", (char*[]){"uniform", "overdriven", "unlimited"}[non_uniformity]);
             reset_slicemap();
             break;
         }
-
-        case 'x':
+        //select axis to view when stopped  
+        case 'x': 
         case 'y':
         case 'z': {
             stop_axis = ch - 'x';
         } break;
 
-        case '0': {
+        case '0': { //nudge rotation zero point
             rotation_zero = (rotation_zero + ROTATION_FULL / 64) & ROTATION_MASK;
             printf("rotation zero %d\n", rotation_zero);
         } break;
         
-        case 'l': {
+        case 'l': { //toggle rotation lock
             rotation_lock = !rotation_lock;
             printf(rotation_lock ? "rotation lock on\n" : "rotation lock off\n");
         } break;
 
-        case 'd':
+        //adjust rotation drift (+/-)
+        case 'd':   
         case 'D': {
             rotation_drift += (ch == 'd' ? 1 : -1);
             printf("rotation drift %d\n", rotation_drift);
         } break;
         
-        case 't': {
+        case 't': { //cycle sweep trail count
             sweep_trails = (sweep_trails + 1) % TRAIL_STACK;
             printf("trails: %d\n", sweep_trails);
         } break;
 
-        case 'p': {
+        case 'p': { //cycle debug panel selection (0=none, 1=panel0, 2=panel1)
             debug_panel = (debug_panel + 1) % 3;
             printf("debug panel %d\n", debug_panel);
         } break;
 
 #ifdef DEVELOPMENT_CALIBRATE
+        // adjust panel eccentricity with keys [/]/{/}
         case '[':
         case ']':
         case '{':
@@ -208,7 +230,8 @@ static bool handle_keys() {
 
 #endif
 
-
+//stack of scanline pointers: [trail][panel][field]
+//TRAIL_STACK=2 means current +1 previous frame are OR'd together
 typedef const pixel_t* scanline_stack_t[TRAIL_STACK][PANEL_COUNT][PANEL_MULTIPLEX];
 
 #ifdef HORIZONTAL_PRESLICE
@@ -350,7 +373,9 @@ static scanline_stack_t* horizontal_slice(uint line) {
 }
 #endif
 
-#ifdef VERTICAL_SCAN
+
+// Scanning Mode
+#ifdef VERTICAL_SCAN    // vertical scan mode
 
 #define ANGLE_PRECISION 10
 #define SINCOS_PRECISION 12
@@ -428,18 +453,19 @@ static scanline_stack_t* vertical_slice(uint *line) {
 }
 
 
-#else
+#else   //horizontal scan mode
     
 static void init_angles(void) {}
 
 #endif
 
+//set panel row address via HUB75E A-E pins directly
 #ifndef ADDR_CLK
 
 // classic HUB75E direct row address
 static void set_matrix_row(uint row) {
 
-    uint a = PANEL_FIELD_HEIGHT - 1 - row;
+    uint a = row;
     uint32_t rowbits = ((a & 0x01) << ROW_A)
                      | ((a & 0x02) << (ROW_B-1))
                      | ((a & 0x04) << (ROW_C-2))
@@ -450,7 +476,7 @@ static void set_matrix_row(uint row) {
     gpio_clear_bits(RGB_STROBE_MASK);
 }
 
-#else
+#else   //set panel row address via shift register (clock a 1 bit through)
 
 // shift register address
 static uint current_shift_row = 1;
@@ -490,6 +516,7 @@ void sig_handler(int sig) {
 }
 
 int main(int argc, char** argv) {
+    //lock CPU core 3
     cpu_set_t cpu_mask;
     CPU_ZERO(&cpu_mask);
     int target_core = 3;
@@ -498,19 +525,20 @@ int main(int argc, char** argv) {
         perror("sched_setaffinity");
         return 1;
     }
-
+    //map dev/mem and configure GPIO pins
     if (!gpio_init()) {
         return -1;
     }
-
+    // set up shared memory for the volume buffer
     voxel_double_buffer_t* buffer = map_volume();
     if (!buffer) {
         fprintf(stderr, "Can't open buffer\n");
         return -1;
     }
-
+    //default colour depth
     buffer->bits_per_channel = 2;
 
+    //hardware initialisation
     rotation_init();
     reset_panels();
     init_angles();
@@ -546,11 +574,14 @@ int main(int argc, char** argv) {
                 break;
             }
         }
-#endif
-        clock_control();
+#endif  
+        clock_control();    //when rotating set to performance mode, when stopped set to powersave mode
 
         // we unblank the previous row while we're shifting in the new row. This lookup defines
         // how late that unblank happens to vary the brightness for BCM
+        // BCM (Binary Code Modulation) brightness control and panel scanning
+        // unblank timing controls how long each bit is displayed
+        // longer = brighter, gamma[] offsets tune the perceived brightness curve
         const int bpc = min(max(1, buffer->bits_per_channel), BPC_MAX);
         const int gamma[BPC_MAX] = {PANEL_WIDTH-120, PANEL_WIDTH-60, PANEL_WIDTH-30};
         int unblank[3] = {};
@@ -569,9 +600,12 @@ int main(int argc, char** argv) {
 
             // read the colour data from the slice buffer and clock it out to the displays
             #pragma GCC unroll 3
-            for (int b = 0; b < bpc; ++b) {
+            for (int b = 0; b < bpc; ++b) {     // one pass per bit plane
 
                 for (int c = 0; c < PANEL_WIDTH; ++c) {
+                    // OR trail frames together to fill gaps from fast rotation 
+                    // pack R/G/B bits from both panels into one 32-bit GPIO write
+
                     int s;
                     pixel_t pix;
                     uint32_t rgbbits = 0;
@@ -651,17 +685,18 @@ int main(int argc, char** argv) {
         }
 #endif
     }
-
-    gpio_set_bits(RGB_BLANK_MASK | ADDR__EN_MASK);
+    // loop exits when killed=true (signal received)
+    gpio_set_bits(RGB_BLANK_MASK | ADDR__EN_MASK);      //blank the display before exit
 
 #ifdef HORIZONTAL_PRESLICE
     slicer_running = false;
-    pthread_join(slicer_thread, NULL);
+    pthread_join(slicer_thread, NULL);  //wait for slicer thread to finish
 #endif
 
-    unmap_volume();
+    unmap_volume();     //release shared memory
 
     return 0;
 }
+
 
 

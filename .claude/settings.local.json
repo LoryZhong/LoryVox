@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(start https://github.com/LoryZhong/3Dvolumeticdisplay)"
+    ]
+  }
+}

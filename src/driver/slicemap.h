@@ -3,7 +3,7 @@
 
 #include "voxel.h"
 
-//slicing a circle into 360 clips (one per degree)
+//slicing a circle into 360 slices  (one per degree)
 #define SLICE_COUNT 360
 #define SLICE_QUADRANT (SLICE_COUNT / 4)
 #define SLICE_WRAP(slice) ((slice) % (SLICE_COUNT))
@@ -16,7 +16,7 @@
 
 // polar coordinate of one LED on the panel
 typedef struct {
-    slice_index_t slice;  //slice angle in [0, 259]
+    slice_index_t slice;  //slice angle in [0, 359]
     uint8_t column;     //column index for panel
 } slice_polar_t;
 
@@ -36,8 +36,9 @@ typedef enum {
 extern voxel_2D_t slice_map[SLICE_COUNT][PANEL_WIDTH][PANEL_COUNT];
 extern float eccentricity[2];
 
-//build slice_map on startup:called once before the main loop 
+// reorder 0..n into interleaved scan order to reduce brightness variation
 void slicemap_ebr(int* a, int n);
+// build slice_map on startup; call once before the main loop
 void slicemap_init(slice_brightness_t brightness);
 
 

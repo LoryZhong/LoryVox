@@ -19,6 +19,7 @@ voxel_2D_t slice_map[SLICE_COUNT][PANEL_WIDTH][PANEL_COUNT];
 _Static_assert(((SLICE_COUNT)&3)==0, "slice count must be a multiple of 4");
 _Static_assert((1<<(sizeof(((slice_polar_t*)0)->slice )*8)) >= SLICE_COUNT, "slice precision overflow");
 _Static_assert((1<<(sizeof(((slice_polar_t*)0)->column)*8)) >= PANEL_WIDTH, "matrix width overflow");
+// to avoid uninitialised reads
 //default eccentricity to 0 if not defined in hardware config, to avoid uninitialised reads
 #ifndef PANEL_0_ECCENTRICITY
 #define ECCENTRICITY_0 0

@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(iverilog -g2012 -o extend_sim extend.sv extend_tb.sv)",
+      "Bash(vvp extend_sim)",
+      "Bash(iverilog -g2012 -o pc_sim program_counter.sv program_counter_tb.sv)",
+      "Bash(vvp pc_sim)"
+    ]
+  }
+}

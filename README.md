@@ -148,6 +148,35 @@ A non-interactive vaporwave demoscene: wireframe Ferrari cruising down an endles
 |-----|--------|
 | esc | Exit |
 
+### `agar` — volumetric agar.io
+
+A 3D take on agar.io. The player controls a cyan-green ball with a bright white core pixel, so it is unmistakable from any viewing angle. Up to fifteen AI enemy balls drift through the volume on a strictly warm palette — red, orange, yellow, hot pink, purple, amber — never cool, so the player and enemies can never be confused. Tiny dim food pellets are scattered through the cube and respawn after being eaten. Mass governs both radius (cube root law, like the original) and movement speed (bigger = slower). A ball can swallow another that has at least 1.15× less mass; eaten enemies respawn small elsewhere so the world stays lively. Enemy AI hunts smaller targets within sight, flees from bigger ones, and otherwise heads for the nearest food.
+
+| Key | Gamepad | Effect |
+|-----|---------|--------|
+| WASD | Left stick | Move in XY plane |
+| Z / X | LT / RT | Move down / up (Z-axis) |
+| R | — | Restart |
+| esc | — | Quit |
+
+### `nova` — supernova explosions
+
+A continuously running deep-space firework show. Each supernova cycles through four phases: a pulsating bright core that swells while it charges, a brilliant white flash, an expanding shockwave of ~700 particles plus a few high-velocity polar jets, and a slow fade as embers cool. Each event picks one of five 16-step temperature gradients — classic white→yellow→red→magenta, hot blue-white hypernova, green nebula, violet-pink crystal, warm amber gold — so no two explosions look the same. Particles are drawn with additive blending, so overlapping debris brightens the volume instead of overwriting. A director keeps the show busy: one large nova near the centre every ~7-11 s, plus smaller satellite explosions every ~2-4 s scattered through the cube.
+
+| Key | Effect |
+|-----|--------|
+| esc | Quit |
+
+### `solar` — solar system orbits
+
+The eight planets of the solar system orbiting the Sun, with size and colour chosen for recognisability: grey Mercury, pale-yellow Venus, blue Earth (with a small grey Moon), rusty Mars, tan Jupiter, gold Saturn with a tilted multi-band ring, cyan Uranus, deep-blue Neptune. Each orbit is drawn as a faint dotted guide ring so the structure is visible even when planets are on the far side. Periods follow Kepler ordering (inner planets fast, outer planets slow) but compressed into 6 s for Mercury through 80 s for Neptune so the whole system is watchable in real time. Slight inclinations give the volume real 3D depth instead of a flat disc. A bright blue-white comet streaks along a wide elliptical orbit, leaving a 200-voxel tail. The Sun itself has a pulsing orange corona.
+
+| Key | Effect |
+|-----|--------|
+| `[` | Slow time |
+| `]` | Speed up time |
+| esc | Quit |
+
 ---
 
 ## Simulator

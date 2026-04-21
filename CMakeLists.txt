@@ -91,7 +91,8 @@ add_toy(flight)
 add_toy(fireworks)
 add_toy(billboard)
 add_toy(shooter)
-
+add_toy(vaporcar)
+add_toy(tunnel)
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/models/ DESTINATION ${MULTIVOX_INSTALL_DIR}/models)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/images/ DESTINATION ${MULTIVOX_INSTALL_DIR}/images FILES_MATCHING PATTERN "*.png")

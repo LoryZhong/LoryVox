@@ -91,6 +91,65 @@ Load any `.obj` or `.png` file with automatic zoom-to-fit:
 
 ---
 
+## Custom Demos
+
+Four demos were written specifically for this project to showcase what only a volumetric display can do — depth that a flat screen cannot fake.
+
+### `billboard` — rotating image billboard
+
+Loads one or more PNG images and displays them as a double-sided textured quad that rotates around the Z axis. Glob patterns are accepted, so `./billboard images/*.png` cycles through a folder. Useful for still-frame demos, logos, and album art.
+
+| Key | Gamepad | Effect |
+|-----|---------|--------|
+| space | A | Toggle auto-rotate |
+| `+` / `-` | — | Rotate faster / slower |
+| `[` / `]` | LB / RB | Previous / next image |
+| — | LT / RT | Zoom out / in |
+| — | Right stick Y | Raise / lower billboard |
+
+### `shooter` — volumetric space shooter
+
+Space Invaders reimagined for 3D. The player flies a fully volumetric 7-voxel ship (fuselage, swept wings with dihedral, cockpit bubble, tail fin, thruster plume) through a field of enemies arranged in a classic Space Invaders formation that steps side-to-side and descends toward the player. Three enemy tiers — teal grunts, purple fighters, red-gold elites — each with a distinct 3D silhouette. Elites drop weapon pickups: small spheres carrying a white pixel icon on their player-facing side (three dots in a row = triple-spread, three in a column = piercing laser, quincunx = rapid-fire). Pickups last 12 seconds and tint the ship's body to match.
+
+| Key | Gamepad | Effect |
+|-----|---------|--------|
+| WASD | Left stick | Move in XY plane |
+| Z / X | LT / RT | Descend / ascend |
+| space | A / RB | Fire |
+| R | — | Restart |
+| esc | — | Quit |
+
+### `tunnel` — neon tunnel runner
+
+A cyberpunk infinite runner. The ship is fixed at the near end of a tunnel; seven obstacle types fly toward you from far Y at increasing speed:
+
+- **Ring** — solid ring with a rotating gap
+- **Dual ring** — two concentric rings, counter-rotating, gaps misaligned
+- **Plus** — four quadrants with a rotating cross-shaped corridor
+- **Diamond** — rotating square frame with a gap on one side
+- **Slats** — five horizontal bars with a sliding missing slot
+- **Iris** — concentric bands with a pulsing open centre
+- **Laser** — scanning vertical + horizontal laser lines, find a safe pocket
+
+Each obstacle picks two random colours from an 8-entry neon palette (cyan, magenta, hot pink, electric purple, acid green, neon yellow, ice blue, neon orange) and alternates them across the wall. Obstacles fade in from far-field dim to brilliant as they approach, giving a strong depth cue. Scrolling corner rails and parallax warp stars sell the speed.
+
+| Key | Gamepad | Effect |
+|-----|---------|--------|
+| WASD | Left stick | Dodge (W/S = up/down, A/D = left/right) |
+| space | A / RB | Boost (1.8× speed, particle trail) |
+| R | — | Restart |
+| esc | — | Quit |
+
+### `vaporcar` — synthwave drive-by scene
+
+A non-interactive vaporwave demoscene: wireframe Ferrari cruising down an endless neon highway. A pulsing striped sun sits above the horizon with concentric cyan / magenta rings and two parallel horizon lines. Road centre-lines, palm trees, holographic cubes, floating diamonds, and double-ring street-lamp pylons scroll past at staggered speeds for parallax depth. Sixteen twinkling stars drift slowly across the sky. The ship trails a white-orange-magenta-purple afterburner out of twin nozzles. All Z coordinates are scaled from the baseline 64-slice design, so the scene fills the whole volume on taller gadgets (e.g. rotovox).
+
+| Key | Effect |
+|-----|--------|
+| esc | Exit |
+
+---
+
 ## Simulator
 
 Run the OpenGL simulator without physical hardware:
